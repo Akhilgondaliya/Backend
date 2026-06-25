@@ -77,31 +77,32 @@ def make_badge(label, bg_color):
 def make_shield_logo(width, height, color):
     """
     Generate a vector shield logo as a Flowable (Drawing).
+    Matches the classic FiShield shape: flat top, curved sides, pointed bottom.
     """
     d = Drawing(width, height)
     w = width
     h = height
+    # Classic shield: flat top, straight sides that angle inward to a bottom point
     pts = [
-        w / 2, h,              # Top dip center
-        w, h * 0.9,            # Top right
-        w * 0.9, h * 0.4,      # Mid-low right
-        w / 2, 0,              # Bottom point
-        w * 0.1, h * 0.4,      # Mid-low left
-        0, h * 0.9             # Top left
+        0, h,                  # Top-left corner
+        w, h,                  # Top-right corner
+        w, h * 0.45,           # Right side drops straight down
+        w / 2, 0,              # Bottom center point
+        0, h * 0.45,           # Left side drops straight down
     ]
     shield = Polygon(pts, fillColor=color, strokeColor=None)
     d.add(shield)
-    
-    # Elegant inner checkmark to make it a pro brand mark
-    check_poly_pts = [
-        w * 0.28, h * 0.45,
-        w * 0.45, h * 0.28,
-        w * 0.75, h * 0.62,
-        w * 0.68, h * 0.67,
-        w * 0.45, h * 0.40,
-        w * 0.35, h * 0.52
+
+    # Clean inner checkmark (tick mark)
+    check_pts = [
+        w * 0.22, h * 0.55,    # Start of check (left)
+        w * 0.42, h * 0.30,    # Bottom of check (dip)
+        w * 0.78, h * 0.75,    # End of check (right-top)
+        w * 0.68, h * 0.80,    # Inner right-top
+        w * 0.42, h * 0.45,    # Inner dip
+        w * 0.30, h * 0.62,    # Inner left
     ]
-    checkmark = Polygon(check_poly_pts, fillColor=colors.white, strokeColor=None)
+    checkmark = Polygon(check_pts, fillColor=colors.white, strokeColor=None)
     d.add(checkmark)
     return d
 
