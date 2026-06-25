@@ -5,7 +5,7 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, KeepTogether
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.pdfgen import canvas
-from reportlab.graphics.shapes import Drawing, Rect
+from reportlab.graphics.shapes import Drawing, Rect, Polygon
 import tldextract
 
 class NumberedCanvas(canvas.Canvas):
@@ -31,6 +31,11 @@ class NumberedCanvas(canvas.Canvas):
 
     def draw_page_decorations(self, page_count):
         self.saveState()
+        
+        # Draw elegant page border
+        self.setStrokeColor(colors.HexColor('#cbd5e1'))
+        self.setLineWidth(1)
+        self.rect(24, 24, 612 - 48, 792 - 48, fill=0, stroke=1)
         
         # Bottom Rule
         self.setStrokeColor(colors.HexColor('#d0e0ee'))
@@ -69,15 +74,40 @@ def make_badge(label, bg_color):
     ]))
     return t
 
+def make_shield_logo(width, height, color):
+    """
+    Generate a vector shield logo as a Flowable (Drawing).
+    """
+    d = Drawing(width, height)
+    w = width
+    h = height
+    pts = [
+        w / 2, h,              # Top dip center
+        w, h * 0.9,            # Top right
+        w * 0.9, h * 0.4,      # Mid-low right
+        w / 2, 0,              # Bottom point
+        w * 0.1, h * 0.4,      # Mid-low left
+        0, h * 0.9             # Top left
+    ]
+    shield = Polygon(pts, fillColor=color, strokeColor=None)
+    d.add(shield)
+    
+    # Elegant inner checkmark to make it a pro brand mark
+    check_poly_pts = [
+        w * 0.28, h * 0.45,
+        w * 0.45, h * 0.28,
+        w * 0.75, h * 0.62,
+        w * 0.68, h * 0.67,
+        w * 0.45, h * 0.40,
+        w * 0.35, h * 0.52
+    ]
+    checkmark = Polygon(check_poly_pts, fillColor=colors.white, strokeColor=None)
+    d.add(checkmark)
+    return d
+
 def make_heading(text, heading_style):
-    square = Table([['']], colWidths=[8], rowHeights=[8])
-    square.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#2563eb')), # Vibrant Blue
-        ('PADDING', (0, 0), (-1, -1), 0),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
-        ('TOPPADDING', (0, 0), (-1, -1), 0),
-    ]))
-    t = Table([[square, Paragraph(text, heading_style)]], colWidths=[14, 490])
+    shield = make_shield_logo(10, 12, colors.HexColor('#2563eb'))
+    t = Table([[shield, Paragraph(text, heading_style)]], colWidths=[16, 488])
     t.setStyle(TableStyle([
         ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('LEFTPADDING', (0, 0), (-1, -1), 0),
@@ -254,12 +284,24 @@ def generate_pdf(scan_data):
     p_logo = Paragraph(logo_text, header_left_style)
     p_sub = Paragraph("REAL-TIME THREAT INTELLIGENCE AUDIT", header_subtitle_style)
     
+    # Subtable to align shield logo and text horizontally
+    header_shield = make_shield_logo(20, 24, colors.HexColor('#3b82f6'))
+    logo_sub_data = [[header_shield, p_logo]]
+    logo_sub_table = Table(logo_sub_data, colWidths=[26, 294])
+    logo_sub_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 0),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 0),
+        ('TOPPADDING', (0, 0), (-1, -1), 0),
+    ]))
+    
     report_id = f"PZ-{int(datetime.now().timestamp()) % 10000000:07d}"
     p_right = Paragraph("THREAT SECURITY REPORT", header_right_style)
     p_meta = Paragraph(f"Report ID: {report_id}<br/>Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}", header_meta_style)
     
     header_data = [
-        [p_logo, p_right],
+        [logo_sub_table, p_right],
         [p_sub, p_meta]
     ]
     header_table = Table(header_data, colWidths=[320, 184])
