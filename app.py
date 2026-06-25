@@ -10,6 +10,7 @@ from ssl_checker import check_ssl
 from whois_checker import check_whois
 from qr_decoder import decode_qr
 from pdf_generator import generate_pdf
+from mail_checker import check_mail
 
 # Load environment variables
 load_dotenv()
@@ -138,6 +139,20 @@ def scan_qr_endpoint():
         
     # Scan the decoded URL
     result = perform_full_scan(decoded_url)
+    return jsonify(result)
+
+@app.route('/api/scan-mail', methods=['POST'])
+def scan_mail_endpoint():
+    """
+    Performs scan on provided email content.
+    Input JSON: { "sender": "...", "subject": "...", "body": "..." }
+    """
+    data = request.json or {}
+    sender = data.get('sender', '').strip()
+    subject = data.get('subject', '').strip()
+    body = data.get('body', '').strip()
+    
+    result = check_mail(sender, subject, body)
     return jsonify(result)
 
 @app.route('/api/report', methods=['GET', 'POST'])
