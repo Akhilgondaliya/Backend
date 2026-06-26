@@ -19,12 +19,13 @@ load_dotenv()
 app = Flask(__name__)
 
 # Configure CORS dynamically from environment, supporting localhost options
-FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://client-jade-rho.vercel.app")
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "https://phishzero.vercel.app")
 CORS(app, resources={r"/*": {
     "origins": [
         "http://localhost:5173", 
         "http://127.0.0.1:5173", 
         "https://client-jade-rho.vercel.app",
+        "https://phishzero.vercel.app",
         FRONTEND_URL
     ]
 }})

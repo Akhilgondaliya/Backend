@@ -1,4 +1,3 @@
-# Detect Phishing! Before It's Too Late.
 import io
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
