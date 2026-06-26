@@ -8,6 +8,28 @@ SUSPICIOUS_TLDS = {'tk', 'ml', 'ga', 'cf', 'gq', 'xyz', 'top', 'club', 'work', '
 # List of popular brands to check for brand impersonation
 POPULAR_BRANDS = ['paypal', 'google', 'microsoft', 'apple', 'amazon', 'netflix', 'facebook', 'instagram', 'twitter', 'linkedin', 'yahoo', 'outlook', 'bankofamerica', 'chase', 'wellsfargo', 'citi', 'binance', 'coinbase']
 
+# Official domains for each brand to check for TLD hijacking or spoofing
+OFFICIAL_BRAND_DOMAINS = {
+    'paypal': {'paypal.com', 'paypal.me'},
+    'google': {'google.com', 'google.co.in', 'google.co.uk', 'gmail.com', 'youtube.com', 'blogspot.com'},
+    'microsoft': {'microsoft.com', 'outlook.com', 'live.com', 'hotmail.com', 'office.com', 'azure.com'},
+    'apple': {'apple.com', 'icloud.com'},
+    'amazon': {'amazon.com', 'amazon.co.uk', 'amazon.in', 'amazon.de', 'aws.amazon.com'},
+    'netflix': {'netflix.com'},
+    'facebook': {'facebook.com', 'fb.com'},
+    'instagram': {'instagram.com'},
+    'twitter': {'twitter.com', 't.co', 'x.com'},
+    'linkedin': {'linkedin.com'},
+    'yahoo': {'yahoo.com'},
+    'outlook': {'outlook.com'},
+    'bankofamerica': {'bankofamerica.com'},
+    'chase': {'chase.com'},
+    'wellsfargo': {'wellsfargo.com'},
+    'citi': {'citi.com', 'citibank.com'},
+    'binance': {'binance.com'},
+    'coinbase': {'coinbase.com'}
+}
+
 # List of suspicious phishing keywords
 PHISHING_KEYWORDS = ['login', 'verify', 'secure', 'update', 'account', 'webscr', 'signin', 'confirm', 'validation', 'banking', 'billing', 'refund', 'support', 'service']
 
@@ -109,7 +131,16 @@ def check_url(url):
         # Homoglyph lookup checks
         homoglyph_impersonation = normalized_brand in normalized_domain and domain_clean != brand
         
-        if (brand_in_subdomain or brand_in_path or brand_in_domain_part or homoglyph_impersonation):
+        # Unauthorized TLD check for popular brands (e.g. paypal.net instead of paypal.com)
+        domain_matches_brand = (domain_clean == brand) or (normalized_domain == normalized_brand)
+        is_official = False
+        if domain_matches_brand:
+            official_set = OFFICIAL_BRAND_DOMAINS.get(brand, set())
+            if registered_domain in official_set:
+                is_official = True
+        unauthorized_domain = domain_matches_brand and not is_official
+        
+        if (brand_in_subdomain or brand_in_path or brand_in_domain_part or homoglyph_impersonation or unauthorized_domain):
             is_brand_impersonation = True
             impersonated_brand = brand
             break
