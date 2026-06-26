@@ -102,12 +102,59 @@ def scan_apk(file_bytes):
         "urls": sorted(list(extracted_urls))
     }
 
+def decode_lsb_stego(img):
+    """
+    Decodes least significant bit (LSB) steganography data payloads.
+    Reads pixel channels (R, G, B) sequentially, extracts bit 0, 
+    and checks if it forms a printable ASCII string ending with '\0'.
+    """
+    try:
+        # Standardize image to RGB mode
+        if img.mode != 'RGB':
+            img = img.convert('RGB')
+        
+        pixels = img.getdata()
+        binary_bits = []
+        for pixel in pixels:
+            # val & 1 extracts the LSB of R, G, B channels
+            binary_bits.extend([str(pixel[0] & 1), str(pixel[1] & 1), str(pixel[2] & 1)])
+            # Stop loading if we have plenty of bits to avoid high memory usage on massive images
+            if len(binary_bits) > 80000:
+                break
+        
+        binary_data = "".join(binary_bits)
+        
+        # Convert binary data to bytes
+        all_bytes = [binary_data[i:i+8] for i in range(0, len(binary_data), 8)]
+        decoded_chars = []
+        for b in all_bytes:
+            char_val = int(b, 2)
+            if char_val == 0:  # Null terminator
+                break
+            # Accept only printable ASCII characters and newline/carriage returns
+            if 32 <= char_val <= 126 or char_val == 10 or char_val == 13:
+                decoded_chars.append(chr(char_val))
+            else:
+                # If we encounter a non-printable character early, it's probably random image noise, not stego text
+                if len(decoded_chars) < 5:
+                    return None
+                break
+                
+        decoded_text = "".join(decoded_chars)
+        # We check for a minimum threshold length to avoid random noise false positives
+        if len(decoded_text) >= 5:
+            return decoded_text
+    except Exception as e:
+        print(f"LSB stego decoding check failed: {e}")
+    return None
+
 def scan_image(file_bytes, qr_decoder_func=None):
     """
-    Parses an Image (JPEG, PNG, etc.) to scan for QR codes and embedded/metadata URLs.
+    Parses an Image (JPEG, PNG, etc.) to scan for QR codes, embedded/metadata URLs, and LSB stego text.
     """
     extracted_urls = set()
     qr_url = None
+    stego_payload = None
     
     # 1. Look for QR code
     if qr_decoder_func:
@@ -120,18 +167,23 @@ def scan_image(file_bytes, qr_decoder_func=None):
         except Exception as e_qr:
             print(f"QR decoding check failed: {e_qr}")
 
-    # 2. Look for EXIF/Metadata
+    # 2. Look for EXIF/Metadata & LSB Steganography
     try:
         image_buffer = io.BytesIO(file_bytes)
         img = Image.open(image_buffer)
+        
+        # EXIF Scan
         exif_data = img.getexif()
         if exif_data:
             for tag_id, value in exif_data.items():
                 if isinstance(value, str):
                     found = re.findall(r'https?://[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}[a-zA-Z0-9./?=&_~#-]*', value)
                     extracted_urls.update(found)
+        
+        # LSB Stego Scan
+        stego_payload = decode_lsb_stego(img)
     except Exception as e_exif:
-        print(f"EXIF parsing check failed: {e_exif}")
+        print(f"Image object parsing checks failed: {e_exif}")
 
     # 3. Look for hidden/appended strings in raw file bytes
     try:
@@ -144,5 +196,6 @@ def scan_image(file_bytes, qr_decoder_func=None):
         "success": True,
         "type": "image",
         "qr_url": qr_url,
-        "urls": sorted(list(extracted_urls))
+        "urls": sorted(list(extracted_urls)),
+        "stego_payload": stego_payload
     }

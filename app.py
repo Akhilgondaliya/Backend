@@ -243,6 +243,10 @@ def scan_file_endpoint():
             risk_score += phishing_url_count * 50
             risk_score += suspicious_url_count * 25
             
+            # Stego detection penalty
+            if scan_data.get("stego_payload"):
+                risk_score += 45
+            
         risk_score = min(risk_score, 100)
         
         # Decide final file verdict
@@ -263,7 +267,8 @@ def scan_file_endpoint():
             "high_risk_permissions": scan_data.get("high_risk_permissions", []),
             "qr_url": scan_data.get("qr_url"),
             "extracted_urls": extracted_urls,
-            "url_scans": url_scan_results
+            "url_scans": url_scan_results,
+            "stego_payload": scan_data.get("stego_payload")
         })
         
     except Exception as e:
