@@ -11,6 +11,7 @@ from whois_checker import check_whois
 from qr_decoder import decode_qr
 from pdf_generator import generate_pdf
 from mail_checker import check_mail
+from file_checker import scan_apk, scan_image
 
 # Load environment variables
 load_dotenv()
@@ -154,6 +155,118 @@ def scan_mail_endpoint():
     
     result = check_mail(sender, subject, body)
     return jsonify(result)
+
+@app.route('/api/scan-file', methods=['POST'])
+def scan_file_endpoint():
+    """
+    Scans an uploaded file (APK or Image) for phishing threats.
+    Input FormData: file named "file"
+    """
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+        
+    uploaded_file = request.files['file']
+    filename = uploaded_file.filename
+    if filename == '':
+        return jsonify({"error": "No selected file"}), 400
+        
+    try:
+        file_bytes = uploaded_file.read()
+        file_size = len(file_bytes)
+        
+        # Identify type by extension
+        ext = filename.split('.')[-1].lower() if '.' in filename else ''
+        
+        if ext == 'apk':
+            scan_data = scan_apk(file_bytes)
+        elif ext in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
+            scan_data = scan_image(file_bytes, qr_decoder_func=decode_qr)
+        else:
+            return jsonify({"error": "Unsupported file format. Please upload an APK or standard Image (PNG, JPG, JPEG, WEBP)"}), 400
+            
+        if not scan_data.get("success", False):
+            return jsonify({"error": scan_data.get("error", "Failed to scan file")}), 500
+            
+        # 1. Run scans on extracted URLs (cap to 5 to avoid timeouts)
+        extracted_urls = scan_data.get("urls", [])
+        capped_urls = extracted_urls[:5]
+        url_scan_results = []
+        
+        phishing_url_count = 0
+        suspicious_url_count = 0
+        
+        for url in capped_urls:
+            # Standardize URL
+            scan_url = url
+            if scan_url.startswith('http://'):
+                scan_url = scan_url.replace('http://', 'https://', 1)
+            elif not scan_url.startswith('https://'):
+                scan_url = 'https://' + scan_url
+                
+            try:
+                # Perform scan
+                url_scan = perform_full_scan(scan_url)
+                url_scan_results.append({
+                    "url": url,
+                    "score": url_scan["score"],
+                    "verdict": url_scan["verdict"],
+                    "results": url_scan["results"]
+                })
+                if url_scan["verdict"] == "Phishing":
+                    phishing_url_count += 1
+                elif url_scan["verdict"] == "Suspicious":
+                    suspicious_url_count += 1
+            except Exception as e_scan:
+                print(f"Failed scanning URL {url}: {e_scan}")
+                
+        # 2. Risk scoring calculation
+        risk_score = 0
+        if scan_data["type"] == "apk":
+            # Add points for high risk permissions
+            risk_score += len(scan_data.get("high_risk_permissions", [])) * 10
+            # Add points for URLs found
+            risk_score += phishing_url_count * 45
+            risk_score += suspicious_url_count * 20
+        else:
+            # Image scanner
+            if scan_data.get("qr_url"):
+                # Check if QR url is phishing/suspicious
+                qr_verdict = next((u for u in url_scan_results if u["url"] == scan_data["qr_url"]), None)
+                if qr_verdict:
+                    if qr_verdict["verdict"] == "Phishing":
+                        risk_score += 80
+                    elif qr_verdict["verdict"] == "Suspicious":
+                        risk_score += 40
+            
+            # General embedded url threat additions
+            risk_score += phishing_url_count * 50
+            risk_score += suspicious_url_count * 25
+            
+        risk_score = min(risk_score, 100)
+        
+        # Decide final file verdict
+        if risk_score >= 70:
+            verdict = "Phishing"
+        elif risk_score >= 40:
+            verdict = "Suspicious"
+        else:
+            verdict = "Safe"
+            
+        return jsonify({
+            "filename": filename,
+            "filesize": file_size,
+            "filetype": scan_data["type"],
+            "score": risk_score,
+            "verdict": verdict,
+            "permissions": scan_data.get("permissions", []),
+            "high_risk_permissions": scan_data.get("high_risk_permissions", []),
+            "qr_url": scan_data.get("qr_url"),
+            "extracted_urls": extracted_urls,
+            "url_scans": url_scan_results
+        })
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to complete file scan: {str(e)}"}), 500
 
 @app.route('/api/report', methods=['GET', 'POST'])
 def generate_report_endpoint():
