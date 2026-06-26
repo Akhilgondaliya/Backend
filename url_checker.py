@@ -14,6 +14,16 @@ PHISHING_KEYWORDS = ['login', 'verify', 'secure', 'update', 'account', 'webscr',
 # List of popular URL shortener domains
 SHORTENER_DOMAINS = {'bit.ly', 'tinyurl.com', 't.co', 'is.gd', 'buff.ly', 'adf.ly', 'bit.do', 'ow.ly', 'goo.gl', 'rebrand.ly', 'shorte.st'}
 
+def normalize_homoglyphs(text):
+    t = text.lower()
+    t = t.replace('1', 'l')
+    t = t.replace('i', 'l')
+    t = t.replace('|', 'l')
+    t = t.replace('0', 'o')
+    t = t.replace('rn', 'm')
+    t = t.replace('vv', 'w')
+    return t
+
 def check_url(url):
     """
     Performs 13+ heuristic checks on the provided URL.
@@ -84,15 +94,22 @@ def check_url(url):
     registered_domain = extracted.registered_domain.lower() if extracted.registered_domain else ""
     is_brand_impersonation = False
     impersonated_brand = ""
+    
+    domain_clean = extracted.domain.lower()
+    normalized_domain = normalize_homoglyphs(domain_clean)
+    
     for brand in POPULAR_BRANDS:
-        # If the brand is in the URL but the registered domain is not exactly brand.tld
-        # (e.g. pay-pal-verify.com or paypal.secure-login.tk, but NOT paypal.com)
+        normalized_brand = normalize_homoglyphs(brand)
+        
+        # Standard checks
         brand_in_subdomain = brand in extracted.subdomain.lower()
         brand_in_path = brand in path.lower()
-        # brand is in the registered domain but doesn't equal it exactly (e.g. paypal-security.com)
-        brand_in_domain_part = brand in extracted.domain.lower() and extracted.domain.lower() != brand
+        brand_in_domain_part = brand in domain_clean and domain_clean != brand
         
-        if (brand_in_subdomain or brand_in_path or brand_in_domain_part):
+        # Homoglyph lookup checks
+        homoglyph_impersonation = normalized_brand in normalized_domain and domain_clean != brand
+        
+        if (brand_in_subdomain or brand_in_path or brand_in_domain_part or homoglyph_impersonation):
             is_brand_impersonation = True
             impersonated_brand = brand
             break
