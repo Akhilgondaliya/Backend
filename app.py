@@ -15,6 +15,7 @@ from qr_decoder import decode_qr
 from pdf_generator import generate_pdf
 from mail_checker import check_mail
 from file_checker import scan_apk, scan_image
+from stats_store import load_stats, track_scan
 
 # Load environment variables
 load_dotenv()
@@ -33,57 +34,6 @@ CORS(app, resources={r"/*": {
     ]
 }})
 
-# Stats Persistence Manager
-STATS_FILE = os.path.join(os.path.dirname(__file__), 'stats.json')
-
-def load_stats():
-    default_stats = {
-        "today_scans": 124,
-        "threats_detected": 42,
-        "safe_urls": 82,
-        "qr_scans": 15,
-        "average_risk_score": 38.0
-    }
-    if not os.path.exists(STATS_FILE):
-        try:
-            with open(STATS_FILE, 'w') as f:
-                json.dump(default_stats, f)
-            return default_stats
-        except Exception:
-            return default_stats
-    try:
-        with open(STATS_FILE, 'r') as f:
-            return json.load(f)
-    except Exception:
-        return default_stats
-
-def save_stats(stats):
-    try:
-        with open(STATS_FILE, 'w') as f:
-            json.dump(stats, f)
-    except Exception:
-        pass
-
-def track_scan(scan_type, score):
-    stats = load_stats()
-    stats["today_scans"] += 1
-    
-    if scan_type == "qr":
-        stats["qr_scans"] += 1
-        
-    is_threat = score >= 40
-    if is_threat:
-        stats["threats_detected"] += 1
-    else:
-        stats["safe_urls"] += 1
-        
-    total_prev = stats["today_scans"] - 1
-    if total_prev < 0:
-        total_prev = 0
-    stats["average_risk_score"] = round((stats["average_risk_score"] * total_prev + score) / stats["today_scans"], 1)
-    
-    save_stats(stats)
-
 def perform_full_scan(url, scan_type="url"):
     """
     Orchestrates the entire scan: Heuristics, SSL certificate, and WHOIS domain age checks.
@@ -96,6 +46,8 @@ def perform_full_scan(url, scan_type="url"):
     
     # If the checker encounters parsing errors, use a default fallback structure
     if heuristic_results.get("error"):
+        if scan_type in ["url", "qr"]:
+            track_scan(scan_type, 0)
         return {
             "url": url,
             "score": 0,
