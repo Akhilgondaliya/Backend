@@ -1,4 +1,5 @@
 import io
+import os
 from datetime import datetime
 from reportlab.lib.pagesizes import letter
 from reportlab.lib import colors
@@ -56,10 +57,20 @@ class NumberedCanvas(canvas.Canvas):
         self.restoreState()
 
 
+def resolve_logo_source(logo_source):
+    if isinstance(logo_source, str) and logo_source:
+        if not os.path.isabs(logo_source):
+            logo_source = os.path.join(os.path.dirname(__file__), logo_source)
+        if os.path.exists(logo_source):
+            return logo_source
+    return logo_source
+
+
 def add_cover_page(story, scan_data, title_text, logo_source):
+    logo_source = resolve_logo_source(logo_source)
     verdict_text = scan_data.get('verdict', 'Safe').upper()
     score = scan_data.get('score', 0)
-    
+
     cover_title_style = ParagraphStyle(
         'CoverTitle',
         fontName='Helvetica-Bold',
@@ -77,59 +88,127 @@ def add_cover_page(story, scan_data, title_text, logo_source):
         leading=18,
         textColor=colors.HexColor('#475569'),
         alignment=0,
-        spaceAfter=30
+        spaceAfter=20
     )
     
     cover_meta_label = ParagraphStyle(
         'CoverMetaLabel',
         fontName='Helvetica-Bold',
-        fontSize=10,
-        leading=14,
+        fontSize=9,
+        leading=12,
         textColor=colors.HexColor('#94a3b8'),
-        spaceAfter=4
+        spaceAfter=3
     )
     
     cover_meta_val = ParagraphStyle(
         'CoverMetaVal',
         fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=15,
+        fontSize=10,
+        leading=13,
         textColor=colors.HexColor('#0f172a'),
-        spaceAfter=15
+        spaceAfter=10
     )
-    
+
+    confidential_style = ParagraphStyle(
+        'CoverConfidential',
+        fontName='Helvetica-Bold',
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor('#94a3b8'),
+        alignment=0
+    )
+
+    target_type = "File Binary Sandbox" if 'filetype' in scan_data else ("Email Spoof Analysis" if 'sender_analysis' in scan_data else "Website URL Scan")
+    target_val = scan_data.get('filename', 'Unknown File') if 'filetype' in scan_data else (scan_data.get('sender_analysis', {}).get('email', 'Unknown Email') if 'sender_analysis' in scan_data else scan_data.get('url', 'N/A'))
+    date_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    report_ref = datetime.now().strftime('PHZ-%Y%m%d-%H%M%S')
+
     # 1. Add logo
-    import os
     if logo_source and ((isinstance(logo_source, str) and os.path.exists(logo_source)) or not isinstance(logo_source, str)):
         try:
-            logo_img = Image(logo_source, width=120, height=26)
+            logo_img = Image(logo_source, width=140, height=32)
             logo_img.hAlign = 'LEFT'
             story.append(logo_img)
         except Exception:
             logo_img = None
     else:
         logo_img = None
-        
+
     if not logo_img:
-        fallback_style = ParagraphStyle('CoverFallbackLogo', fontName='Helvetica-Bold', fontSize=18, textColor=colors.HexColor('#0f172a'), alignment=0)
-        story.append(Paragraph("Phish<b>Zero</b> Security Sandbox", fallback_style))
-        
-    story.append(Spacer(1, 40))
-    
-    accent_bar = Table([['']], colWidths=[504], rowHeights=[4])
+        fallback_style = ParagraphStyle('CoverFallbackLogo', fontName='Helvetica-Bold', fontSize=20, textColor=colors.HexColor('#0f172a'), alignment=0)
+        story.append(Paragraph('Phish<b>Zero</b> Security Sandbox', fallback_style))
+
+    story.append(Spacer(1, 28))
+
+    accent_bar = Table([['']], colWidths=[504], rowHeights=[6])
     accent_bar.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#00d4ff')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#0ea5e9')),
         ('PADDING', (0, 0), (-1, -1), 0),
     ]))
     story.append(accent_bar)
-    story.append(Spacer(1, 20))
-    
+    story.append(Spacer(1, 22))
+
     story.append(Paragraph(title_text, cover_title_style))
-    story.append(Paragraph("Security Threat Intelligence & Sandbox Diagnostics Audit", cover_subtitle_style))
-    
-    story.append(Spacer(1, 40))
-    
+    story.append(Paragraph('Security Threat Intelligence Report for enterprise phishing protection and incident response teams.', cover_subtitle_style))
+    story.append(Spacer(1, 16))
+
+    meta_rows = [
+        [Paragraph('AUDIT TARGET TYPE', cover_meta_label), Paragraph('SCAN DATE / TIMESTAMP', cover_meta_label)],
+        [Paragraph(target_type, cover_meta_val), Paragraph(date_str, cover_meta_val)],
+        [Paragraph('CONFIDENCE LEVEL', cover_meta_label), Paragraph('REPORT REFERENCE', cover_meta_label)],
+        [Paragraph(f"{scan_data.get('confidence', 95)}%", cover_meta_val), Paragraph(report_ref, cover_meta_val)]
+    ]
+
+    meta_table = Table(meta_rows, colWidths=[252, 252])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 22))
+
+    verdict_desc_style = ParagraphStyle(
+        'CoverVerdictDesc',
+        fontName='Helvetica-Oblique',
+        fontSize=10,
+        leading=14,
+        textColor=colors.HexColor('#475569'),
+    )
+
     if verdict_text == 'PHISHING':
+        verdict_color = colors.HexColor('#991b1b')
+        verdict_desc = 'DANGER: High phishing indicators, malicious heuristics, or active domain threat blocks triggered.'
+    elif verdict_text == 'SUSPICIOUS':
+        verdict_color = colors.HexColor('#c2410c')
+        verdict_desc = 'WARNING: Suspicious parameters detected. Caution recommended before interaction.'
+    else:
+        verdict_color = colors.HexColor('#065f46')
+        verdict_desc = 'SAFE: No critical threat signatures or fraudulent keywords found.'
+
+    verdict_badge_style = ParagraphStyle(
+        'CoverVerdictBadge',
+        fontName='Helvetica-Bold',
+        fontSize=11,
+        leading=14,
+        textColor=colors.white,
+        alignment=1
+    )
+    verdict_badge_text = Paragraph(f"VERDICT: {verdict_text} (Score: {score}/100)", verdict_badge_style)
+    verdict_badge_tbl = Table([[verdict_badge_text]], colWidths=[280], rowHeights=[24])
+    verdict_badge_tbl.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), verdict_color),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('PADDING', (0, 0), (-1, -1), 0),
+    ]))
+    story.append(verdict_badge_tbl)
+    story.append(Spacer(1, 10))
+    story.append(Paragraph(verdict_desc, verdict_desc_style))
+    story.append(Spacer(1, 40))
+    story.append(Paragraph('PhishZero delivers pro-active threat scoring, URL behavioral context, and forensic guidance for cyber defenders.', confidential_style))
+    story.append(PageBreak())
         verdict_color = colors.HexColor('#991b1b')
         verdict_desc = "DANGER: High phishing indicators, malicious heuristics, or active domain threat blocks triggered."
     elif verdict_text == 'SUSPICIOUS':

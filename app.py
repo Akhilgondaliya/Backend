@@ -393,7 +393,8 @@ def generate_report_endpoint():
         scan_results = perform_full_scan(url)
     
     try:
-        pdf_data = generate_pdf(scan_results)
+        logo_path = os.path.join(os.path.dirname(__file__), 'logo.png')
+        pdf_data = generate_pdf(scan_results, logo_path)
         buffer = io.BytesIO(pdf_data)
         
         return send_file(
