@@ -1,0 +1,20 @@
+[
+  {
+    "timestamp": "2026-06-24 17:28:07",
+    "name": "Test User",
+    "email": "tester@example.com",
+    "message": "Hello, this is a test message to verify the storage function!"
+  },
+  {
+    "timestamp": "2026-06-24 17:29:06",
+    "name": "Test User",
+    "email": "tester@example.com",
+    "message": "Hello, this is a test message to verify the storage function!"
+  },
+  {
+    "timestamp": "2026-06-27 10:59:21",
+    "name": "John Doe",
+    "email": "john.doe@example.com",
+    "message": "Testing collaboration form."
+  }
+]

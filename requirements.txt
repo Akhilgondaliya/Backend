@@ -1,0 +1,10 @@
+flask
+flask-cors
+pyzbar
+opencv-python-headless
+pillow
+python-whois
+tldextract
+reportlab
+python-dotenv
+qrcode
